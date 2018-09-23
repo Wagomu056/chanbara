@@ -1,7 +1,8 @@
 pico-8 cartridge // http://www.pico-8.com
 version 16
 __lua__
--- debug print --
+
+-- debug --
 dbg = {}
 dbg.print = {}
 dbg.print.data = function(msg, frame, color)
@@ -55,10 +56,10 @@ end
 
 local dbg_print = dbg.print.new()
 
--- common data --
-data = {}
-data.vector2 = {}
-data.vector2.new = function(x, y)
+-- math --
+math = {}
+math.vec2 = {}
+math.vec2.new = function(x, y)
 	local obj = {}
 
 	obj.x = x
@@ -83,10 +84,7 @@ anim.data.new = function(sprites, w, h, time, is_loop)
 end
 
 anim_table = {}
-anim_table["player_idle"] = anim.data.new({0,1}, 1, 2, 0.5, true)
-anim_table["player_run"] = anim.data.new({2,3,4,5}, 1, 2, 0.15, true)
-anim_table["player_kick"] = anim.data.new({6}, 1, 2, 0.5, false)
-anim_table["ball_idle"] = anim.data.new({64,65,66}, 1, 1, 0.1, true)
+anim_table["player_idle"] = anim.data.new({0,1}, 1, 1, 0.5, true)
 
 anim.controller = {}
 anim.controller.new = function()
@@ -153,93 +151,21 @@ anim.controller.new = function()
 end
 
 -- collision --
-local col = {}
-col.data = {}
-col.data.new = function()
-	local obj = {}
-
-	obj.ax = 0
-	obj.ay = 0
-	obj.bx = 1
-	obj.by = 1
-	obj.size_x = 1
-	obj.size_y = 1
-
-	obj.set_pos = function(self, x, y)
-		obj.ax = x
-		obj.ay = y
-		obj.bx = x + ((self.size_x * 8) - 1)
-		obj.by = y + ((self.size_y * 8) - 1)
-	end
-
-	obj.set_size = function(self, size_x, size_y)
-		self.size_x = size_x
-		self.size_y = size_y
-	end
-
-	return obj
-end
-
 function check_wall(x, y)
 	local map_val = mget(x / 8, y / 8)
 	return fget(map_val,0)
 end
 
-function check_wall_by_object(check_x, check_y, object)
-	local base_x = check_x
-	local base_y = check_y
-
-	local count_x = object.hit_w / 8
-	local count_y = object.hit_h / 8
-	for idx_y = 0, count_y do
-		for idx_x = 0, count_x do
-			local x = base_x
-			if idx_x != 0 then
-				x += (idx_x * 8) - 1
-			end
-
-			local y = base_y
-			if idx_y != 0 then
-				y += (idx_y * 8) - 1
-			end
-
-			if check_wall(x, y) then
-				return true
-			end
-		end
-	end
-
-	local mod_x = object.hit_w % 8
-	local mod_y = object.hit_h % 8
-	if mod_x != 0 or mod_y != 0 then
-		local x = base_x + object.hit_w - 1
-		local y = base_y + object.hit_h - 1
-
-		if check_wall(x, y) then
-			return true
-		end
-	end
-
-	return false
-end
-
-function calc_reflect(value)
-	local mod = (value % 8)
-	if value > 0 then
-		return (value - mod)
-	else
-		return (value + (8 - mod))
-	end
-end
-
-data.hitbox = {}
-data.hitbox.new = function(owner)
+-- hit check --
+hit = {}
+hit.data = {}
+hit.data.new = function(owner)
 	local obj = {}
 
-	obj.aa = data.vector2.new(0, 0)
-	obj.bb = data.vector2.new(0, 0)
-	obj.width = width
-	obj.hight = hight
+	obj.aa = math.vec2.new(0, 0)
+	obj.bb = math.vec2.new(0, 0)
+	obj.width = 0
+	obj.hight = 0
 	obj.owner = owner
 
 	obj.set_pos = function(self, x, y)
@@ -280,11 +206,8 @@ function check_hit(box_a, box_b)
 	return true
 end
 
--- class --
-local class = {}
-
-class.hit_checker ={}
-class.hit_checker.new = function()
+hit.checker ={}
+hit.checker.new = function()
 	local obj = {}
 	obj.atk_list = {}
 	obj.def_list = {}
@@ -313,51 +236,57 @@ class.hit_checker.new = function()
 		end
 	end
 
+	obj.regist_def_hit_data = function(self, def_data)
+		add(self.def_list, def_data)	
+	end
+
 	return obj
 end
-local hit_checker = class.hit_checker.new()
+local hit_checker = hit.checker.new()
 
-class.actor = {}
-class.actor.new = function()
+-- time_keeper --
+time_keeper = {}
+time_keeper.new = function()
 	local obj = {}
 
-	obj.init = function(self)
-	end
-	obj.update = function(self)
-	end
-
-	return obj
-end
-
-class.object = {}
-class.object.new = function()
-	local obj = class.actor.new()
-	obj.actor_init = obj.init
-	obj.actor_update = obj.update
-
 	-- variables
-	obj.x = 0
-	obj.y = 0
-	obj.spr_w = 1
-	obj.spr_h = 1
-	obj.spr = 0
-	obj.hit_w = 8
-	obj.hit_h = 8
+	obj.pre_elapsed_time = 0.0
+	obj.delta_time = 0.0
 
 	-- function
 	obj.init = function(self)
-		self:actor_init()
-	end
-	obj.update = function(self)
-		self:actor_update()
-		self:update_pre()
-		self:update_control()
-		self:update_animation()
-	end
-	obj.draw = function(self)
-		spr(self.spr,self.x,self.y,self.spr_w,self.spr_h)
+		self.pre_elapsed_time = time()
 	end
 
+	obj.update = function(self)
+		local elapsed_time = time()
+		self.delta_time = elapsed_time - self.pre_elapsed_time
+		self.pre_elapsed_time = elapsed_time
+	end
+
+	return obj
+end
+
+-- act --
+local act = {}
+
+act.object = {}
+act.object.new = function()
+	local obj = {}
+
+	-- variables
+	obj.pos = math.vec2.new(0,0)
+	obj.spr_size = math.vec2.new(1,1)
+	obj.spr_idx = 0
+
+	-- function
+	obj.draw = function(self)
+		spr(self.spr_idx
+			,self.pos.x,self.pos.y
+			,self.spr_size.x,self.spr_size.y)
+	end
+
+	-- update function
 	obj.update_pre = function(self)
 	end
 
@@ -368,74 +297,59 @@ class.object.new = function()
 	end
 
 	obj.set_pos = function(self, x, y)
-		self.x = x
-		self.y = y
+		self.pos.x = x
+		self.pos.y = y
 	end
 
-	obj.set_spr_size = function(self, w, h)
-		self.spr_w = w
-		self.spr_h = h
-	end
-
-	obj.set_hit_size = function(self, w, h)
-		self.hit_w = w
-		self.hit_h = h
+	obj.set_spr_size = function(self, x, y)
+		self.spr_size.x = x
+		self.spr_size.y = y
 	end
 
 	return obj
 end
 
-class.chara = {}
-class.chara.new = function()
-	local obj = class.object.new()
-	obj.object_init = obj.init
-	obj.object_update_pre = obj.update_pre
-	obj.object_update_control = obj.update_control
-	obj.object_update_animation = obj.update_animation
+act.chara = {}
+act.chara.new = function()
+	local obj = act.object.new()
 
 	-- variable
 	obj.anim_controller = anim.controller.new()
-	obj.pre_elapsed_time = 0.0
-	obj.delta_time = 0.0
-	obj.anim_time_scale = 1.0
+	obj.time_keeper = time_keeper.new()
+	obj.hitbox = hit.data.new(obj)
 	obj.direction = "right"
-	obj.hitbox = data.hitbox.new(obj)
 
-	-- function
+	-- base function
 	obj.init = function(self)
-		self:object_init()
-		self.pre_elapsed_time = time()
+		self.time_keeper:init()
 	end
 
-	obj.update_pre = function(self)
-		self:object_update_pre()
+	obj.update = function(self)
+		self.time_keeper:update()
+		local delta_time = self.time_keeper.delta_time
 
-		local elapsed_time = time()
-		self.delta_time = elapsed_time - self.pre_elapsed_time
-		self.pre_elapsed_time = elapsed_time
-	end
-
-	obj.update_control = function(self)
-		self:object_update_control()
-	end
-
-	obj.update_animation = function(self)
-		self.hitbox:set_pos(self.x, self.y)
-
-		self:object_update_animation()
-		self.anim_controller:update(self.delta_time * self.anim_time_scale)
-		self.spr, self.spr_w, self.spr_h = self.anim_controller:get_spr()
+		self:update_pre_animation()
+		self:update_animation(delta_time)
 	end
 
 	obj.draw = function(self)
 		spr(self.spr, 
-			self.x, self.y,
+			self.pos.x, self.pos.y,
 			self.spr_w, self.spr_h,
 			self.direction == "left")
-
-		--self.hitbox:debug_draw()
 	end
 
+	-- derivation function
+	obj.update_pre_animation = function(self)
+		self.hitbox:set_pos(self.pos.x, self.pos.y)
+	end
+
+	obj.update_animation = function(self, delta_time)
+		self.anim_controller:update(delta_time)
+		self.spr, self.spr_w, self.spr_h = self.anim_controller:get_spr()
+	end
+
+	-- setting function
 	obj.atk_callback = function(self)
 	end
 
@@ -445,57 +359,51 @@ class.chara.new = function()
 	return obj
 end
 
-class.player = {}
-class.player.new = function()
-	local obj = class.chara.new()
+act.player = {}
+act.player.new = function()
+	local obj = act.chara.new()
 	obj.chara_init = obj.init
-	obj.chara_update_control = obj.update_control
-	obj.chara_update_animation = obj.update_animation
-	obj.chara_set_pos = obj.set_pos
+	obj.chara_update_pre_animation = obj.update_pre_animation
 
 	-- variable
-	obj.pre_anim_state = "idle"
-	obj.anim_state = "idle"
-	obj.pre_anim_state = "idle"
-	obj.anim_state = "idle"
-	obj.request_pos = data.vector2.new(0, 0)
 	obj.action = "none"
+	obj.pre_anim_state = "idle"
+	obj.anim_state = "idle"
+	obj.request_pos = math.vec2.new(0, 0)
 	obj.pre_button = 0
-	obj.kick_hitbox = data.hitbox.new(obj)
+	obj.atk_hitbox = hit.data.new(obj)
 
 	-- function
 	obj.init = function(self)
 		self:chara_init()
-		self:set_spr_size(1,2)
 
-		self:set_hit_size(8,16)
-		self.hitbox:set_size(self.hit_w, self.hit_h)
-		self.hitbox:set_pos(self.x, self.y)
+		self:set_spr_size(1,1)
+		self.hitbox:set_size(8, 8)
+		self.hitbox:set_pos(self.pos.x, self.pos.y)
 
 		self.anim_controller:set("player_idle")
 		self.request_pos.x = 0
 		self.request_pos.y = 0
-		self.kick_hitbox:set_size(8, 16)
+		self.atk_hitbox:set_size(8, 16)
 
-		add(hit_checker.def_list, self.hitbox)
+		hit_checker:regist_def_hit_data(self.hitbox)
 	end
 
-	obj.update_control = function(self)
-		self:chara_update_control()
+	obj.update_pre_animation = function(self)
+		self:chara_update_pre_animation()
 		self:update_action()
 		self:set_anim_and_request_pos()
 		self:adjust_request_pos()
 		self:apply_request_pos()
+		self:update_anim_state()
 	end
 
-	obj.update_animation = function(self)
+	obj.update_anim_state = function(self)
 		if self.pre_anim_state != self.anim_state then
 			local state = "player_" .. self.anim_state
 			self.anim_controller:set(state)
 			self.pre_anim_state = self.anim_state
 		end
-
-		self:chara_update_animation()
 	end
 
 	obj.update_action = function(self)
@@ -512,37 +420,9 @@ class.player.new = function()
 
 		if btnp(4) then
 			self.action = "kick"
-			self:regist_kick_atk()
+			--self:regist_atk_hitbox()
 			return
 		end
-
-		local directions = {"left", "right", "up", "down"}
-		for i = 0, 3 do
-			if btnp(i) then
-				self.action = directions[i + 1]
-				return
-			end
-		end
-
-		for i = 0, 3 do
-			if btn(i) then
-				self.action = directions[i + 1]
-				return
-			end
-		end
-	end
-
-	obj.convert_button_to_direction = function(self, button)
-		local btn_bit = button
-		local directions = {"left", "right", "up", "down"}
-		for i = 0, 3 do
-			local chk_bit = shl(1, i)
-			if band(btn_bit, chk_bit) != 0 then
-				return directions[i + 1]
-			end
-		end
-
-		return "none"
 	end
 
 	obj.set_anim_and_request_pos = function(self)
@@ -551,70 +431,28 @@ class.player.new = function()
 		local action = self.action
 		if action == "none" then
 			anim_state = "idle"
-		elseif action == "kick" then
-			anim_state = "kick"
-		else
-			anim_state = "run"
-
-			local c_speed = 1
-			local x = 0
-			local y = 0
-
-			if action == "down" then
-				y = c_speed
-			elseif action == "up" then
-				y = -c_speed
-			elseif action == "left" then
-				x = -c_speed
-				self.direction = "left"
-			elseif action == "right" then
-				x = c_speed
-				self.direction = "right"
-			else
-				anim_state = "idle"
-			end
-
-			self.request_pos.x = x
-			self.request_pos.y = y
 		end
 
 		self:set_anim(anim_state)
 	end
 
 	obj.adjust_request_pos = function(self)
-		local req_pos = self.request_pos
-		local x = self.x + req_pos.x
-		local y = self.y + req_pos.y
-
-		if check_wall_by_object(x, y, self) then
-			if req_pos.y != 0 then
-				req_pos.y = calc_reflect(req_pos.y)
-			elseif req_pos.x != 0 then
-				req_pos.x = calc_reflect(req_pos.x)
-			end
-
-			self.request_pos = req_pos
-		end
 	end
 
 	obj.apply_request_pos = function(self)
-		local x = self.x + self.request_pos.x
-		local y = self.y + self.request_pos.y
+		local x = self.pos.x + self.request_pos.x
+		local y = self.pos.y + self.request_pos.y
 		self:set_pos(x, y)
 
 		self.request_pos.x = 0
 		self.request_pos.y = 0
 	end
 
-	obj.set_pos = function(self, x, y)
-		self:chara_set_pos(x, y)
-	end
-
 	obj.set_anim = function(self, state)
 		self.anim_state = state
 	end
 
-	obj.regist_kick_atk = function(self)
+	obj.regist_atk_hitbox = function(self)
 		local offset_x = 4
 		if self.direction == "left" then
 			offset_x *= -1
@@ -622,133 +460,18 @@ class.player.new = function()
 
 		local offset_y = 0
 
-		local x = self.x + offset_x
-		local y = self.y + offset_y
+		local x = self.pos.x + offset_x
+		local y = self.pos.y + offset_y
 
-		self.kick_hitbox:set_pos(x, y)
-		add(hit_checker.atk_list, self.kick_hitbox)
+		self.atk_hitbox:set_pos(x, y)
+		add(hit_checker.atk_list, self.atk_hitbox)
 	end
 
 	return obj
 end
 
-class.ball = {}
-class.ball.new = function()
-	local obj = class.chara.new()
-	obj.chara_init = obj.init
-	obj.chara_update_control = obj.update_control
-
-	-- variables
-	obj.dx = 0.0
-	obj.dy = 0.0
-
-	-- parameters
-	obj.decay = 0.01
-
-	-- function
-	obj.init = function(self)
-		self:chara_init()
-		self:set_spr_size(1,1)
-
-		self:set_hit_size(4,4)
-		self.hitbox:set_size(self.hit_w, self.hit_h)
-		self.hitbox:set_pos(self.x, self.y)
-
-		self.anim_controller:set("ball_idle")
-
-		add(hit_checker.def_list, self.hitbox)
-	end
-
-	obj.update_control = function(self)
-		self:chara_update_control()
-		self:apply_delta_move()
-		self:update_delta_move()
-		self:update_anim_scale()
-	end
-
-	obj.apply_delta_move = function(self)
-		local reflect_x = 0.0
-		local next_x = self.x + self.dx
-		if check_wall_by_object(next_x, self.y, self) then
-			reflect_x = self.dx * -1.0
-			self.dx = calc_reflect(self.dx)
-		end
-		self.x += self.dx
-
-		if reflect_x != 0 then
-			self.dx = reflect_x
-		end
-
-		local reflect_y = 0.0
-		local next_y = self.y + self.dy
-		if check_wall_by_object(self.x, next_y, self) then
-			reflect_y = self.dy * -1.0
-			self.dy = calc_reflect(self.dy)
-		end
-		self.y += self.dy
-
-		if reflect_y != 0 then
-			self.dy = reflect_y
-		end
-	end
-
-	obj.update_delta_move = function(self)
-		self.dx = self:update_delta_move_value(self.dx)
-		self.dy = self:update_delta_move_value(self.dy)
-	end
-
-	obj.update_delta_move_value = function(self, value)
-		local tmp = value
-		if tmp > 0 then
-			tmp -= self.decay
-			if tmp <= 0 then
-				tmp = 0
-			end
-		elseif tmp < 0 then
-			tmp += self.decay
-			if tmp >= 0 then
-				tmp = 0
-			end
-		end
-
-		return tmp
-	end
-
-	obj.add_force = function(self, x, y)
-		self.dx += x
-		self.dy += y
-	end
-
-	obj.update_anim_scale = function(self)
-		local delta_move = abs(self.dx) + abs(self.dy)
-		self.anim_time_scale = delta_move / 1.0
-	end
-
-	obj.def_callback = function(self, atk_box)
-		local atk_direction = atk_box.owner.direction
-		local force_x = 2.5
-		if atk_direction == "left" then
-			force_x *= -1
-		end
-
-		local atk_y = atk_box.bb.y - 4
-		local self_y = self.hitbox.aa.y + (self.hitbox.hight * 0.5)
-		local is_up = (self_y < atk_y)
-		local force_y = 0.3
-		if is_up then
-			force_y *= -1
-		end
-
-		printh("self_y:" .. self_y .. " atk_y:" .. atk_y)
-		printh("x:" .. force_x .. " y:" .. force_y)
-		self:add_force(force_x, force_y)
-	end
-
-	return obj
-end
-
-class.map_info = {}
-class.map_info.new = function()
+act.map_info = {}
+act.map_info.new = function()
 	local obj = {}
 
 	-- variables
@@ -766,52 +489,47 @@ class.map_info.new = function()
 end
 
 -- global --
-local map_info = class.map_info.new()
-local player = class.player.new()
-local ball = class.ball.new()
+local map_info = act.map_info.new()
+local player = act.player.new()
 
 -- system --
 function _init()
 	player:init()
 	player:set_pos(8,8)
-
-	ball:init()
-	ball:set_pos(16, 16)
 end
 
 function _update()
 	hit_checker:check()
 
 	player:update()
-	ball:update()
 	dbg_print:update()
 end
 
 function _draw()
 	map_info:draw()
 	player:draw()
-	ball:draw()
+
 	--hit_checker:debug_draw()
 	dbg_print:draw()
 end
 
 __gfx__
-00444400000000000004444000044440000444400004444004444000000000000000000000000000000000000000000000000000000000000000000000000000
-004fff00004444000004fff00004fff00004fff00004fff004fff000000000000000000000000000000000000000000000000000000000000000000000000000
-004fff00004fff000044fff00004fff00044fff00004fff044fff000000000000000000000000000000000000000000000000000000000000000000000000000
-004ff000004fff000000ff000004ff000000ff000004ff0000ff0000000000000000000000000000000000000000000000000000000000000000000000000000
-007c7000004ff0000000c700000cc70000fcc700000cc700fcc70000000000000000000000000000000000000000000000000000000000000000000000000000
-007c7000007c70000007c700000f770000f77700000f7700f7770000000000000000000000000000000000000000000000000000000000000000000000000000
-007f7000007f70000007fff0000f770000f77700000f7700f7770000000000000000000000000000000000000000000000000000000000000000000000000000
-007f7000007f7000000777000007f700000777000007f70007770000000000000000000000000000000000000000000000000000000000000000000000000000
-00ccc00000ccc000000ccc00000ccc00000ccc00000ccc000ccc0000000000000000000000000000000000000000000000000000000000000000000000000000
-00ccc00000ccc000000ccc00000ccc00000ccc00000ccc000ccc0000000000000000000000000000000000000000000000000000000000000000000000000000
-00ccc00000ccc00000cc0f000000cf00000fccf00000cf000cfff008000000000000000000000000000000000000000000000000000000000000000000000000
-00f0f00000f0f0000ff0ff0008ffff0000ff0ff008ffff000f00fff8000000000000000000000000000000000000000000000000000000000000000000000000
-00f0f00000f0f000ff08f0000800ff000ff08f000800ff000f000000000000000000000000000000000000000000000000000000000000000000000000000000
-00f0f00000f0f000f0080000000ff0000f008000000ff000ff000000000000000000000000000000000000000000000000000000000000000000000000000000
-00f0f00000f0f00080000000000f00000f000000000f0000f0000000000000000000000000000000000000000000000000000000000000000000000000000000
-00888800008888008800000000088000088000000008800088000000000000000000000000000000000000000000000000000000000000000000000000000000
+11000000000000001100000011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+01111110110000000111111001111110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0ffffff0011111100ffffff00ffffff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0f1fff100ffffff00f1fff100f1fff10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0ffffff00f1fff100ffffff00ffffff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+502222005ffffff00022220500222205000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5f8888005f888800008888f5008888f5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+50f00f0050f00f0000f0000500f00f05000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000006606000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000606000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000006660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00066660000666606600000006666000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00555556005555566000000055555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00066660000666600000000006666000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
