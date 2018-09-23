@@ -168,14 +168,25 @@ hit.data.new = function(owner)
 	obj.width = 0
 	obj.hight = 0
 	obj.owner = owner
+	obj.is_mirror = false
 
 	obj.set_pos = function(self, x, y)
-		local ofs_x = x + self.offset.x
-		local ofs_y = y + self.offset.y
-		self.aa.x = ofs_x
-		self.aa.y = ofs_y
-		self.bb.x = ofs_x + self.width - 1
-		self.bb.y = ofs_y + self.hight - 1
+		local up_x = x + self.offset.x
+		local up_y = y + self.offset.y
+		local dw_x = up_x + self.width - 1
+		local dw_y = up_y + self.hight - 1
+
+		if self.is_mirror then
+			self.aa.x = up_x - self.width
+			self.aa.y = up_y
+			self.bb.x = dw_x - self.width
+			self.bb.y = dw_y
+		else
+			self.aa.x = up_x
+			self.aa.y = up_y
+			self.bb.x = dw_x
+			self.bb.y = dw_y
+		end
 	end
 
 	obj.set_size = function(self, w, h)
@@ -384,6 +395,10 @@ act.player.new = function()
 	obj.chara_init = obj.init
 	obj.chara_update_pre_animation = obj.update_pre_animation
 
+	-- const
+	obj.box_ofs_x = -4
+	obj.box_ofs_y = -7
+
 	-- variable
 	obj.id = 1
 	obj.action = "none"
@@ -401,12 +416,10 @@ act.player.new = function()
 		self.direction = direction
 
 		self:set_spr_size(1,1)
-		local offset_x = -4
-		local offset_y = -7
-		self:set_spr_offset(offset_x, offset_y)
+		self:set_spr_offset(self.box_ofs_x, self.box_ofs_y)
 
 		self.hitbox:set_size(8, 8)
-		self.hitbox:set_offset(offset_x, offset_y)
+		self.hitbox:set_offset(self.box_ofs_x, self.box_ofs_y)
 		self.hitbox:set_pos(self.pos.x, self.pos.y)
 		hit_checker:regist_def_hit_data(self.hitbox)
 
@@ -414,7 +427,8 @@ act.player.new = function()
 		self.request_pos.x = 0
 		self.request_pos.y = 0
 
-		self.atk_hitbox:set_size(8, 16)
+		self.atk_hitbox.is_mirror = (direction == "left")
+		self.atk_hitbox:set_size(10, 8)
 	end
 
 	obj.update_pre_animation = function(self)
@@ -446,9 +460,9 @@ act.player.new = function()
 			return
 		end
 
-		if btnp(4) then
-			self.action = "kick"
-			--self:regist_atk_hitbox()
+		if btnp(4, (self.id -1)) then
+			self.action = "slash"
+			self:regist_atk_hitbox()
 			return
 		end
 	end
@@ -481,16 +495,14 @@ act.player.new = function()
 	end
 
 	obj.regist_atk_hitbox = function(self)
-		local offset_x = 4
+		local x = self.pos.x
+		local y = self.pos.y
+
 		if self.direction == "left" then
-			offset_x *= -1
+			--x -= 10
 		end
 
-		local offset_y = 0
-
-		local x = self.pos.x + offset_x
-		local y = self.pos.y + offset_y
-
+		self.atk_hitbox:set_offset(0, -7)
 		self.atk_hitbox:set_pos(x, y)
 		add(hit_checker.atk_list, self.atk_hitbox)
 	end
@@ -509,11 +521,9 @@ sys.player_list.new = function()
 	obj.init = function(self)
 		for i = 1, self.max_count do
 			add(self.list, act.player.new())
-			printh("add player " .. i)
 		end
 
 		for i = 1, self.max_count do
-			printh("init player " .. i)
 			local pl = self.list[i]
 
 			local directin = "right"
