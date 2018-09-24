@@ -367,13 +367,22 @@ act.object.new = function()
 	obj.spr_idx = 0
 
 	-- function
-	obj.draw = function(self, is_reverse)
+	obj.draw = function(self, is_mirror, pal_c0, pal_c1)
+		local is_pal = (pal_c0 and pal_c1)
+		if is_pal then
+			pal(pal_c0, pal_c1)
+		end
+
 		spr(self.spr_idx
 			,self.pos.x + self.spr_offset.x
 			,self.pos.y + self.spr_offset.y
 			,self.spr_size.x
 			,self.spr_size.y
-			,is_reverse)
+			,is_mirror)
+
+		if is_pal then
+			pal()
+		end
 	end
 
 	-- update function
@@ -433,8 +442,8 @@ act.chara.new = function()
 		self:update_aft_animation()
 	end
 
-	obj.draw = function(self)
-		self:object_draw(self.direction == "left")
+	obj.draw = function(self, pal_c0, pal_c1)
+		self:object_draw(self.direction == "left", pal_c0, pal_c1)
 	end
 
 	-- derivation function
@@ -542,7 +551,11 @@ act.player.new = function()
 	end
 
 	obj.draw = function(self)
-		obj:chara_draw()
+		if self.id == 1 then
+			obj:chara_draw()
+		else
+			obj:chara_draw(8, 9)
+		end
 
 		local wpn_dir = "left"
 		if self.spr_idx == 3 then
@@ -685,7 +698,7 @@ sys.player_list.new = function()
 			local window_center = 64
 
 			local gap = 40
-			--local gap = 8
+			--qlocal gap = 8
 
 			if directin == "right" then
 				gap *= -1
