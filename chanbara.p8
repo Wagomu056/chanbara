@@ -463,12 +463,43 @@ act.chara.new = function()
 	return obj
 end
 
+act.weapon = {}
+act.weapon.new = function()
+	local obj = {}
+
+	-- parameter
+	obj.spr_base = 16
+	obj.spr_ofs_x = -4
+	obj.spr_ofs_y = -7
+	obj.ofs_x = -8
+
+	obj.draw = function(self, x, y, spr_idx, dir, is_mirror)
+		local ofs_x = self.ofs_x
+		if dir == "right" then
+			ofs_x *= -1
+		end
+		if is_mirror then
+			ofs_x *= -1
+		end
+
+		spr(spr_idx + self.spr_base
+			,x + ofs_x + self.spr_ofs_x
+			,y + self.spr_ofs_y
+			,1
+			,1
+			,is_mirror)
+	end
+
+	return obj
+end
+
 act.player = {}
 act.player.new = function()
 	local obj = act.chara.new()
 	obj.chara_init = obj.init
 	obj.chara_update_pre_animation = obj.update_pre_animation
 	obj.chara_update_aft_animation = obj.update_aft_animation
+	obj.chara_draw = obj.draw
 
 	-- const
 	obj.box_ofs_x = -4
@@ -480,6 +511,7 @@ act.player.new = function()
 	obj.anim_state = "idle"
 	obj.request_pos = math.vec2.new(0, 0)
 	obj.atk_hitbox = hit.data.new(obj)
+	obj.weapon = act.weapon.new()
 	obj.is_req_atk = false
 	obj.insert_action = nil
 	obj.is_damage = false
@@ -507,6 +539,20 @@ act.player.new = function()
 
 		self.atk_hitbox.is_mirror = (direction == "left")
 		self.atk_hitbox:set_size(10, 8)
+	end
+
+	obj.draw = function(self)
+		obj:chara_draw()
+
+		local wpn_dir = "left"
+		if self.spr_idx == 3 then
+			wpn_dir = "right"
+		end
+
+		local is_mirror = (self.direction == "left")
+		self.weapon:draw(
+			self.pos.x, self.pos.y
+			,self.spr_idx, wpn_dir, is_mirror)
 	end
 
 	obj.update_pre_animation = function(self)
@@ -603,12 +649,12 @@ act.player.new = function()
 	obj.def_callback = function(self, atk_box)
 		if self.action == "guard" then
 			self.insert_action = "guard_scc"
-			shake_offset = 0.2
+			shake_offset = 0.15
 			return
 		end
 
 		self.insert_action = "damage"
-		shake_offset = 0.2
+		shake_offset = 0.25
 	end
 
 	return obj
