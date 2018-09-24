@@ -71,7 +71,7 @@ end
 -- anim --
 anim = {}
 anim.data = {}
-anim.data.new = function(sprites, w, h, times, moves, is_loop)
+anim.data.new = function(sprites, w, h, times, moves, func_tags, is_loop)
 	local obj = {}
 
 	obj.sprites = sprites
@@ -79,17 +79,20 @@ anim.data.new = function(sprites, w, h, times, moves, is_loop)
 	obj.spr_h = h
 	obj.times = times
 	obj.moves = moves
+	obj.func_tags = func_tags
 	obj.is_loop = is_loop
 
 	return obj
 end
 
 anim_table = {}
-anim_table["pl_idle"] = anim.data.new({0,1},1,1,{0.5,0.5},{0,0},true)
-anim_table["pl_slash"] = anim.data.new({2,3},1,1,{0.2,0.3},{0,8},false)
+anim_table["pl_idle"]
+= anim.data.new({0,1},1,1,{0.5,0.5},{0,0},{nil,nil},true)
+anim_table["pl_slash"]
+= anim.data.new({2,3},1,1,{0.2,0.2},{0,8},{nil,"regist_atk"},false)
 
 anim.controller = {}
-anim.controller.new = function()
+anim.controller.new = function(owner)
 	local obj = {}
 
 	-- variables
@@ -100,6 +103,7 @@ anim.controller.new = function()
 	obj.is_end = false
 	obj.just_change = false
 	obj.is_mirror = false
+	obj.owner = owner
 
 	-- functions
 	obj.set = function(self, key_name)
@@ -135,6 +139,11 @@ anim.controller.new = function()
 					self.spr_index += 1
 					self.just_change = true
 				end
+			end
+
+			if self.just_change then
+				local tag = self.data.func_tags[self.spr_index + 1]
+				self.owner:callback_anim_change(tag)
 			end
 
 			self.elapsed_time = 0.0
@@ -371,7 +380,7 @@ act.chara.new = function()
 	obj.object_draw = obj.draw
 
 	-- variable
-	obj.anim_controller = anim.controller.new()
+	obj.anim_controller = anim.controller.new(obj)
 	obj.time_keeper = time_keeper.new()
 	obj.hitbox = hit.data.new(obj)
 	obj.direction = "right"
@@ -407,6 +416,9 @@ act.chara.new = function()
 		self.spr_idx, self.spr_size.x, self.spr_size.y = self.anim_controller:get_spr()
 	end
 
+	obj.callback_anim_change = function(self, tag)
+	end
+
 	-- setting function
 	obj.atk_callback = function(self)
 	end
@@ -434,6 +446,7 @@ act.player.new = function()
 	obj.anim_state = "idle"
 	obj.request_pos = math.vec2.new(0, 0)
 	obj.atk_hitbox = hit.data.new(obj)
+	obj.is_req_atk = false
 
 	-- function
 	obj.init = function(self, id, direction)
@@ -452,7 +465,7 @@ act.player.new = function()
 
 		self.anim_controller.is_mirror = (self.direction == "left")
 		self.anim_controller:set("pl_idle")
-		
+
 		self.request_pos.x = 0
 		self.request_pos.y = 0
 
@@ -470,6 +483,7 @@ act.player.new = function()
 		self:chara_update_aft_animation()
 		self:update_request_pos()
 		self:apply_request_pos()
+		self:proc_req_atk()
 	end
 
 	obj.update_action = function(self)
@@ -479,7 +493,6 @@ act.player.new = function()
 
 		if btnp(4, (self.id -1)) then
 			self.action = "slash"
-			self:regist_atk_hitbox()
 			return
 		end
 
@@ -510,6 +523,13 @@ act.player.new = function()
 		self.request_pos.y = 0
 	end
 
+	obj.proc_req_atk = function(self)
+		if self.is_req_atk then
+			self:regist_atk_hitbox()
+			self.is_req_atk = false
+		end
+	end
+
 	obj.regist_atk_hitbox = function(self)
 		local x = self.pos.x
 		local y = self.pos.y
@@ -517,6 +537,12 @@ act.player.new = function()
 		self.atk_hitbox:set_offset(0, -7)
 		self.atk_hitbox:set_pos(x, y)
 		add(hit_checker.atk_list, self.atk_hitbox)
+	end
+
+	obj.callback_anim_change = function(self, tag)
+		if tag == "regist_atk" then
+			self.is_req_atk = true
+		end
 	end
 
 	return obj
