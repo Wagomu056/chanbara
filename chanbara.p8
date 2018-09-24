@@ -71,21 +71,22 @@ end
 -- anim --
 anim = {}
 anim.data = {}
-anim.data.new = function(sprites, w, h, times, is_loop)
+anim.data.new = function(sprites, w, h, times, moves, is_loop)
 	local obj = {}
 
 	obj.sprites = sprites
 	obj.spr_w = w
 	obj.spr_h = h
 	obj.times = times
+	obj.moves = moves
 	obj.is_loop = is_loop
 
 	return obj
 end
 
 anim_table = {}
-anim_table["pl_idle"] = anim.data.new({0,1},1,1,{0.5,0.5},true)
-anim_table["pl_slash"] = anim.data.new({2,3},1,1,{0.2,0.3},false)
+anim_table["pl_idle"] = anim.data.new({0,1},1,1,{0.5,0.5},{0,0},true)
+anim_table["pl_slash"] = anim.data.new({2,3},1,1,{0.2,0.3},{0,8},false)
 
 anim.controller = {}
 anim.controller.new = function()
@@ -97,6 +98,8 @@ anim.controller.new = function()
 	obj.spr_index = 0
 	obj.elapsed_time = 0.0
 	obj.is_end = false
+	obj.just_change = false
+	obj.is_mirror = false
 
 	-- functions
 	obj.set = function(self, key_name)
@@ -108,6 +111,7 @@ anim.controller.new = function()
 		if self.data.is_loop then
 			self.is_end = true
 		end
+		self.just_change = false
 	end
 
 	obj.update = function(self, delta_time)
@@ -115,17 +119,21 @@ anim.controller.new = function()
 			return
 		end
 
+		self.just_change = false
+
 		self.elapsed_time += delta_time
 
 		if self.elapsed_time >= self.data.times[self.spr_index + 1] then
 			if self.data.is_loop == true then
 				self.spr_index = (self.spr_index + 1) % #(self.data.sprites)
+				self.just_change = true
 			else
 				local is_end = ((self.spr_index + 1) == #(self.data.sprites))
-				if is_end == true then
+				if is_end then
 					self.is_end = true
 				else
 					self.spr_index += 1
+					self.just_change = true
 				end
 			end
 
@@ -135,6 +143,18 @@ anim.controller.new = function()
 
 	obj.get_spr = function(self)
 		return self.data.sprites[self.spr_index + 1], self.data.spr_w, self.data.spr_h
+	end
+
+	obj.get_move = function(self)
+		if self.just_change == false then
+			return 0.0
+		else
+			local move = self.data.moves[self.spr_index + 1]
+			if self.is_mirror then
+				move *= -1
+			end
+			return move
+		end
 	end
 
 	obj.debug_draw = function(self)
@@ -367,6 +387,7 @@ act.chara.new = function()
 
 		self:update_pre_animation()
 		self:update_animation(delta_time)
+		self:update_aft_animation()
 	end
 
 	obj.draw = function(self)
@@ -376,6 +397,9 @@ act.chara.new = function()
 	-- derivation function
 	obj.update_pre_animation = function(self)
 		self.hitbox:set_pos(self.pos.x, self.pos.y)
+	end
+
+	obj.update_aft_animation = function(self)
 	end
 
 	obj.update_animation = function(self, delta_time)
@@ -398,6 +422,7 @@ act.player.new = function()
 	local obj = act.chara.new()
 	obj.chara_init = obj.init
 	obj.chara_update_pre_animation = obj.update_pre_animation
+	obj.chara_update_aft_animation = obj.update_aft_animation
 
 	-- const
 	obj.box_ofs_x = -4
@@ -406,7 +431,6 @@ act.player.new = function()
 	-- variable
 	obj.id = 1
 	obj.action = "none"
-	obj.pre_anim_state = "idle"
 	obj.anim_state = "idle"
 	obj.request_pos = math.vec2.new(0, 0)
 	obj.atk_hitbox = hit.data.new(obj)
@@ -426,7 +450,9 @@ act.player.new = function()
 		self.hitbox:set_pos(self.pos.x, self.pos.y)
 		hit_checker:regist_def_hit_data(self.hitbox)
 
+		self.anim_controller.is_mirror = (self.direction == "left")
 		self.anim_controller:set("pl_idle")
+		
 		self.request_pos.x = 0
 		self.request_pos.y = 0
 
@@ -437,10 +463,13 @@ act.player.new = function()
 	obj.update_pre_animation = function(self)
 		self:chara_update_pre_animation()
 		self:update_action()
-		self:set_anim_and_request_pos()
-		self:adjust_request_pos()
-		self:apply_request_pos()
 		self:update_anim_state()
+	end
+
+	obj.update_aft_animation = function(self)
+		self:chara_update_aft_animation()
+		self:update_request_pos()
+		self:apply_request_pos()
 	end
 
 	obj.update_action = function(self)
@@ -454,23 +483,22 @@ act.player.new = function()
 			return
 		end
 
-		self.action = "none"
+		self.action = "idle"
 	end
 
-	obj.set_anim_and_request_pos = function(self)
-		local anim_state = "idle"
+	obj.update_anim_state = function(self)
+		local state = self.action
 
-		local action = self.action
-		if action == "none" then
-			anim_state = "idle"
-		elseif action == "slash" then
-			anim_state = "slash"
+		if self.anim_state != state then
+			self.anim_state = state
+			local state = "pl_" .. self.anim_state
+			self.anim_controller:set(state)
 		end
-
-		self:set_anim(anim_state)
 	end
 
-	obj.adjust_request_pos = function(self)
+	obj.update_request_pos = function(self)
+		self.request_pos.x
+		= self.anim_controller:get_move()
 	end
 
 	obj.apply_request_pos = function(self)
@@ -482,25 +510,9 @@ act.player.new = function()
 		self.request_pos.y = 0
 	end
 
-	obj.update_anim_state = function(self)
-		if self.pre_anim_state != self.anim_state then
-			local state = "pl_" .. self.anim_state
-			self.anim_controller:set(state)
-			self.pre_anim_state = self.anim_state
-		end
-	end
-
-	obj.set_anim = function(self, state)
-		self.anim_state = state
-	end
-
 	obj.regist_atk_hitbox = function(self)
 		local x = self.pos.x
 		local y = self.pos.y
-
-		if self.direction == "left" then
-			--x -= 10
-		end
 
 		self.atk_hitbox:set_offset(0, -7)
 		self.atk_hitbox:set_pos(x, y)
@@ -600,8 +612,8 @@ function _draw()
 	player_list:draw()
 
 	-- dbg
-	--hit_checker:debug_draw()
-	--player_list:dbg_draw_pos()
+	hit_checker:debug_draw()
+	player_list:dbg_draw_pos()
 	dbg_print:draw()
 end
 
