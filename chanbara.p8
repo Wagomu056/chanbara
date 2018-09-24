@@ -68,6 +68,24 @@ math.vec2.new = function(x, y)
 	return obj
 end
 
+-- shake --
+local shake_offset = 0
+function screen_shake()
+	local fade = 0.5
+	local offset_x=16-rnd(32)
+	local offset_y=16-rnd(32)
+	
+	offset_x*=shake_offset
+	offset_y*=shake_offset
+	
+	camera(offset_x,offset_y)
+	
+	shake_offset*=fade
+	if shake_offset<0.05 then
+		shake_offset=0
+	end
+end
+
 -- anim --
 anim = {}
 anim.data = {}
@@ -567,6 +585,7 @@ act.player.new = function()
 
 	obj.def_callback = function(self, atk_box)
 		self.is_damage = true
+		shake_offset = 0.2
 	end
 
 	return obj
@@ -658,6 +677,8 @@ function _update()
 end
 
 function _draw()
+	screen_shake()
+
 	map_info:draw()
 	player_list:draw()
 
