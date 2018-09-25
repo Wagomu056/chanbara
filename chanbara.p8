@@ -437,9 +437,9 @@ act.chara.new = function()
 		self.time_keeper:update()
 		local delta_time = self.time_keeper.delta_time
 
-		self:update_pre_animation()
+		self:update_pre_animation(delta_time)
 		self:update_animation(delta_time)
-		self:update_aft_animation()
+		self:update_aft_animation(delta_time)
 	end
 
 	obj.draw = function(self, pal_c0, pal_c1)
@@ -502,6 +502,86 @@ act.weapon.new = function()
 	return obj
 end
 
+act.stamina = {}
+act.stamina.new = function()
+	local obj = {}
+
+	-- paramter
+	obj.param_down = 50 / 1 -- value/sec
+	obj.param_up = 100 / 1
+	obj.param_stay_time = 0.3
+
+	-- variables
+	obj.value = 100
+	obj.is_reduce = false
+	obj.pre_is_reduce = false
+	obj.state = "none"
+	obj.current_state_time = 0.0
+
+	obj.set_is_reduce = function(self, is_reduce)
+		self.is_reduce = is_reduce
+	end
+
+	obj.update = function(self, delta_time)
+		local just_reduce = false
+		if self.pre_is_reduce != self.is_reduce then
+			if self.is_reduce then
+				just_reduce = true
+			end
+			self.pre_is_reduce = self.is_reduce
+		end
+
+		local pre_state = self.state
+		self:update_state(delta_time)
+
+		if pre_state != self.state then
+			self.current_state_time = 0
+		else
+			self.current_state_time += delta_time
+		end
+
+		self:update_value(delta_time, just_reduce)
+	end
+
+	obj.update_state = function(self, delta_time)
+		if self.is_reduce then
+			self.state = "down"
+			return
+		end
+
+		local st = self.state
+		if st == "down" then
+			self.state = "stay"
+		elseif st == "stay" then
+			if self.current_state_time >= self.param_stay_time then
+				self.state = "up"
+			end
+		elseif st == "up" then
+			if self.value >= 100 then
+				self.state = "none"
+			end
+		end
+	end
+
+	obj.update_value = function(self, delta_time, just_reduce)
+		local st = self.state
+
+		if just_reduce then
+			self.value -= 10
+		end
+
+		if st == "down" then
+			self.value -= self.param_down * delta_time
+			self.value = max(self.value, 0)
+		elseif st == "up" then
+			self.value += self.param_up * delta_time
+			self.value = min(self.value, 100)
+		end
+	end
+
+	return obj
+end
+
 act.player = {}
 act.player.new = function()
 	local obj = act.chara.new()
@@ -521,6 +601,7 @@ act.player.new = function()
 	obj.request_pos = math.vec2.new(0, 0)
 	obj.atk_hitbox = hit.data.new(obj)
 	obj.weapon = act.weapon.new()
+	obj.stamina = act.stamina.new()
 	obj.is_req_atk = false
 	obj.insert_action = nil
 	obj.is_damage = false
@@ -568,13 +649,15 @@ act.player.new = function()
 			,self.spr_idx, wpn_dir, is_mirror)
 	end
 
-	obj.update_pre_animation = function(self)
+	obj.update_pre_animation = function(self, delta_time)
 		self:chara_update_pre_animation()
 		self:update_action()
+		self:update_stamina_is_reduce()
 		self:update_anim_state()
+		self.stamina:update(delta_time)
 	end
 
-	obj.update_aft_animation = function(self)
+	obj.update_aft_animation = function(self, delta_time)
 		self:chara_update_aft_animation()
 		self:update_request_pos()
 		self:apply_request_pos()
@@ -605,6 +688,11 @@ act.player.new = function()
 		end
 
 		self.action = "idle"
+	end
+
+	obj.update_stamina_is_reduce = function(self)
+		local is_reduce = (self.action == "guard")
+		self.stamina:set_is_reduce(is_reduce)
 	end
 
 	obj.update_anim_state = function(self)
@@ -670,6 +758,11 @@ act.player.new = function()
 		shake_offset = 0.25
 	end
 
+	obj.dbg_draw_stamina = function(self)
+		local v = self.stamina.value
+		print(v, self.pos.x, self.pos.y + 10)
+	end
+
 	return obj
 end
 
@@ -720,6 +813,7 @@ sys.player_list.new = function()
 
 	obj.dbg_draw_pos = function(self)
 		foreach(self.list, function(obj) obj:dbg_draw_pos() end)
+		foreach(self.list, function(obj) obj:dbg_draw_stamina() end)
 	end
 
 	return obj
@@ -768,7 +862,7 @@ function _draw()
 
 	-- dbg
 	--hit_checker:debug_draw()
-	--player_list:dbg_draw_pos()
+	player_list:dbg_draw_pos()
 	dbg_print:draw()
 end
 
