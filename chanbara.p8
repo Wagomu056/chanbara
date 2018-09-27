@@ -1,6 +1,6 @@
 pico-8 cartridge // http://www.pico-8.com
 version 16
-__lua__
+__lua__x
 
 -- debug --
 dbg = {}
@@ -107,7 +107,7 @@ anim_table = {}
 anim_table["pl_idle"]
 = anim.data.new({0,1},1,1,{0.5,0.5},{0,0},{nil,nil},true)
 anim_table["pl_slash"]
-= anim.data.new({2,3},1,1,{0.2,0.3},{0,8},{nil,"regist_atk"},false)
+= anim.data.new({2,3},1,1,{0.05,0.1},{0,8},{nil,"regist_atk"},false)
 anim_table["pl_damage"]
 = anim.data.new({5},1,1,{0.2},{-8},{nil},false)
 anim_table["pl_guard"]
@@ -698,11 +698,23 @@ act.player.new = function()
 	obj.update_anim_state = function(self)
 		local state = self.action
 
-		if self.anim_state != state then
+		if self:should_set_anim(state) then
 			self.anim_state = state
 			local state = "pl_" .. self.anim_state
 			self.anim_controller:set(state)
 		end
+	end
+
+	obj.should_set_anim = function(self, state)
+		if self.anim_state != state then
+			return true
+		end
+
+		if self.insert_action == "damage" then
+			return true
+		end
+
+		return false
 	end
 
 	obj.update_request_pos = function(self)
@@ -760,7 +772,7 @@ act.player.new = function()
 
 	obj.dbg_draw_stamina = function(self)
 		local v = self.stamina.value
-		print(v, self.pos.x, self.pos.y + 10)
+		print(v, self.pos.x, self.pos.y - 16)
 	end
 
 	return obj
