@@ -505,16 +505,17 @@ act.weapon.new = function()
 end
 
 act.stamina = {}
-act.stamina.new = function()
+act.stamina.new = function(value_max)
 	local obj = {}
 
 	-- paramter
 	obj.param_down = 50 / 1 -- value/sec
-	obj.param_up = 100 / 1
+	obj.param_up = 25 / 1
 	obj.param_stay_time = 0.3
 
 	-- variables
-	obj.value = 100
+	obj.value = value_max
+	obj.value_max = value_max
 	obj.is_reduce = false
 	obj.pre_is_reduce = false
 	obj.state = "none"
@@ -577,12 +578,47 @@ act.stamina.new = function()
 			self.value = max(self.value, 0)
 		elseif st == "up" then
 			self.value += self.param_up * delta_time
-			self.value = min(self.value, 100)
+			self.value = min(self.value, self.value_max)
 		end
 	end
 
 	obj.is_empty = function(self)
 		return (self.value == 0)
+	end
+
+	return obj
+end
+
+act.meter = {}
+act.meter.new = function(max_value, offset_y)
+	local obj = {}
+
+	obj.length = 16
+
+	obj.x = 0
+	obj.y = 0
+	obj.offset_y = offset_y
+	obj.max_value = max_value
+	obj.value = max_value
+
+	obj.update = function(self, x, y, value)
+		self.value = value
+		self.x = x
+		self.y = y
+	end
+
+	obj.draw = function(self)
+		local ax = self.x - (self.length * 0.5)
+		local ay = self.y + self.offset_y
+		local bx = ax + self.length
+		local by = ay + 1
+		rectfill(ax, ay, bx, by, 1)
+
+		local ratio = self.value / self.max_value
+		bx = ax + (self.length * ratio)
+		if ratio > 0 then
+			rectfill(ax, ay, bx, by, 10)
+		end
 	end
 
 	return obj
@@ -607,10 +643,15 @@ act.player.new = function()
 	obj.request_pos = math.vec2.new(0, 0)
 	obj.atk_hitbox = hit.data.new(obj)
 	obj.weapon = act.weapon.new()
-	obj.stamina = act.stamina.new()
 	obj.is_req_atk = false
 	obj.insert_action = nil
 	obj.is_damage = false
+
+	-- stamina
+	local max_stamina = 100
+	obj.stamina = act.stamina.new(max_stamina)
+	local stamina_meter_offset_y = -12
+	obj.stamina_meter = act.meter.new(max_stamina, stamina_meter_offset_y)
 
 	-- function
 	obj.init = function(self, id, direction)
@@ -638,6 +679,8 @@ act.player.new = function()
 	end
 
 	obj.draw = function(self)
+		self.stamina_meter:draw()
+
 		if self.id == 1 then
 			obj:chara_draw()
 		else
@@ -668,6 +711,7 @@ act.player.new = function()
 		self:update_request_pos()
 		self:apply_request_pos()
 		self:proc_req_atk()
+		self.stamina_meter:update(self.pos.x, self.pos.y, self.stamina.value)
 
 		self.insert_action = nil
 	end
@@ -887,7 +931,7 @@ function _draw()
 
 	-- dbg
 	--hit_checker:debug_draw()
-	player_list:dbg_draw_pos()
+	--player_list:dbg_draw_pos()
 	dbg_print:draw()
 end
 
