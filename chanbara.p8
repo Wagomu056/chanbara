@@ -517,12 +517,17 @@ act.stamina.new = function(value_max)
 	obj.value = value_max
 	obj.value_max = value_max
 	obj.is_reduce = false
+	obj.is_request_recover = false
 	obj.pre_is_reduce = false
 	obj.state = "none"
 	obj.current_state_time = 0.0
 
 	obj.set_is_reduce = function(self, is_reduce)
 		self.is_reduce = is_reduce
+	end
+
+	obj.request_recover = function(self)
+		self.is_request_recover = true
 	end
 
 	obj.update = function(self, delta_time)
@@ -567,6 +572,11 @@ act.stamina.new = function(value_max)
 	end
 
 	obj.update_value = function(self, delta_time, just_reduce)
+		if self.is_request_recover then
+			self.is_request_recover = false
+			self.value = self.value_max
+		end
+
 		local st = self.state
 
 		if just_reduce then
@@ -609,6 +619,10 @@ act.meter.new = function(max_value, offset_y)
 	end
 
 	obj.draw = function(self)
+		if self.value == self.max_value then
+			return
+		end
+		
 		local ax = self.x - (self.width * 0.5)
 		local ay = self.y + self.offset_y
 		local bx = ax + self.width
@@ -821,6 +835,7 @@ act.player.new = function()
 		if self.action == "guard" then
 			self.insert_action = "guard_scc"
 			shake_offset = 0.15
+			self.stamina:request_recover()
 			return
 		end
 
