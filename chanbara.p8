@@ -107,7 +107,7 @@ anim_table = {}
 anim_table["pl_idle"]
 = anim.data.new({0,1},1,1,{0.5,0.5},{0,0},{nil,nil},true)
 anim_table["pl_slash"]
-= anim.data.new({2,3},1,1,{0.05,0.1},{0,8},{nil,"regist_atk"},false)
+= anim.data.new({2,3},1,1,{0.1,0.3},{0,8},{nil,"regist_atk"},false)
 anim_table["pl_damage"]
 = anim.data.new({5},1,1,{0.2},{-8},{nil},false)
 anim_table["pl_guard"]
@@ -115,7 +115,7 @@ anim_table["pl_guard"]
 anim_table["pl_guard_scc"]
 = anim.data.new({7},1,1,{0.05},{0},{nil},false)
 anim_table["pl_reflect"]
-= anim.data.new({6},1,1,{0.6},{-8},{nil},false)
+= anim.data.new({6},1,1,{1.0},{-8},{nil},false)
 anim_table["pl_cant_guard"]
 = anim.data.new({8},1,1,{0.2},{0},{nil},false)
 
@@ -593,7 +593,8 @@ act.meter = {}
 act.meter.new = function(max_value, offset_y)
 	local obj = {}
 
-	obj.length = 16
+	obj.width = 8
+	obj.hight = 0
 
 	obj.x = 0
 	obj.y = 0
@@ -608,14 +609,14 @@ act.meter.new = function(max_value, offset_y)
 	end
 
 	obj.draw = function(self)
-		local ax = self.x - (self.length * 0.5)
+		local ax = self.x - (self.width * 0.5)
 		local ay = self.y + self.offset_y
-		local bx = ax + self.length
-		local by = ay + 1
+		local bx = ax + self.width
+		local by = ay + self.hight
 		rectfill(ax, ay, bx, by, 1)
 
 		local ratio = self.value / self.max_value
-		bx = ax + (self.length * ratio)
+		bx = ax + (self.width * ratio)
 		if ratio > 0 then
 			rectfill(ax, ay, bx, by, 10)
 		end
@@ -650,7 +651,7 @@ act.player.new = function()
 	-- stamina
 	local max_stamina = 100
 	obj.stamina = act.stamina.new(max_stamina)
-	local stamina_meter_offset_y = -12
+	local stamina_meter_offset_y = -10
 	obj.stamina_meter = act.meter.new(max_stamina, stamina_meter_offset_y)
 
 	-- function
