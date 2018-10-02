@@ -332,6 +332,17 @@ hit.checker.new = function()
 end
 local hit_checker = hit.checker.new()
 
+-- camera_effect --
+local request_cam_eff_color = 0
+function draw_camera_effect()
+	if request_cam_eff_color == 0 then
+		return
+	end
+
+	rectfill(-32,-32,160,160,request_cam_eff_color)
+	request_cam_eff_color = 0
+end
+
 -- time_keeper --
 time_keeper = {}
 time_keeper.new = function()
@@ -839,11 +850,13 @@ act.player.new = function()
 			self.insert_action = "guard_scc"
 			shake_offset = 0.15
 			self.stamina:request_recover()
+			request_cam_eff_color = 10
 			return
 		end
 
 		self.insert_action = "damage"
 		shake_offset = 0.25
+		request_cam_eff_color = 8
 	end
 
 	obj.dbg_draw_stamina = function(self)
@@ -947,6 +960,8 @@ function _draw()
 
 	map_info:draw()
 	player_list:draw()
+
+	--draw_camera_effect()
 
 	-- dbg
 	--hit_checker:debug_draw()
