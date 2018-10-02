@@ -622,7 +622,7 @@ act.meter.new = function(max_value, offset_y)
 		if self.value == self.max_value then
 			return
 		end
-		
+
 		local ax = self.x - (self.width * 0.5)
 		local ay = self.y + self.offset_y
 		local bx = ax + self.width
@@ -694,14 +694,17 @@ act.player.new = function()
 	end
 
 	obj.draw = function(self)
+		-- stamina
 		self.stamina_meter:draw()
 
+		-- chara
 		if self.id == 1 then
 			obj:chara_draw()
 		else
 			obj:chara_draw(8, 9)
 		end
 
+		-- weapon
 		local wpn_dir = "left"
 		if self.spr_idx == 3 then
 			wpn_dir = "right"
