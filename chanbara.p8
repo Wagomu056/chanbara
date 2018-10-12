@@ -109,7 +109,7 @@ anim_table["pl_idle"]
 anim_table["pl_slash"]
 = anim.data.new({2,3},1,1,{0.1,0.3},{0,8},{nil,"regist_atk"},false)
 anim_table["pl_damage"]
-= anim.data.new({5},1,1,{0.2},{-8},{nil},false)
+= anim.data.new({5},1,1,{0.3},{-8},{nil},false)
 anim_table["pl_guard"]
 = anim.data.new({4},1,1,{1},{0},{nil},true)
 anim_table["pl_guard_scc"]
@@ -220,7 +220,7 @@ anim.controller.new = function(owner)
 end
 
 -- collision --
-function check_wall(x, y)
+function check_floor(x, y)
 	local map_val = mget(x / 8, y / 8)
 	return fget(map_val,0)
 end
@@ -585,7 +585,7 @@ act.stamina.new = function(value_max)
 	obj.update_value = function(self, delta_time, just_reduce)
 		if self.is_request_recover then
 			self.is_request_recover = false
-			self.value = self.value_max
+			self.value = min(self.value + 50, self.value_max)
 		end
 
 		local st = self.state
@@ -864,6 +864,18 @@ act.player.new = function()
 		print(v, self.pos.x, self.pos.y - 16)
 	end
 
+	obj.check_floor = function(self)
+		local x = self.pos.x
+		local ofs_x = 4
+		if self.direction == "right" then
+			x += ofs_x
+		else
+			x -= ofs_x
+		end
+
+		return check_floor(x, self.pos.y + 1)
+	end
+
 	return obj
 end
 
@@ -912,6 +924,17 @@ sys.player_list.new = function()
 		foreach(self.list, function(obj) obj:draw() end)
 	end
 
+	obj.check_out_floor = function(self)
+		for i = 1, self.max_count do
+			local pl = self.list[i]
+			if not pl:check_floor() then
+				return i
+			end
+		end
+
+		return 0
+	end
+
 	obj.dbg_draw_pos = function(self)
 		foreach(self.list, function(obj) obj:dbg_draw_pos() end)
 		foreach(self.list, function(obj) obj:dbg_draw_stamina() end)
@@ -939,9 +962,61 @@ act.map_info.new = function()
 	return obj
 end
 
+-- end message --
+act.end_message = {}
+act.end_message.new = function()
+	local obj = {}
+
+	obj.center = 64
+	obj.box_height = 10
+	obj.winner = 0
+
+	obj.draw = function(self)
+		self:draw_back()
+		self:draw_message()
+	end
+
+	obj.draw_message = function(self)
+		local x = 64 - (4 * 4) -- char size * char count
+		local y = self.center - 4
+		local message = self.winner .. "P    WIN."
+		print(message, x, y, 7)
+	end
+
+	obj.draw_back = function(self)
+		local half_height = self.box_height * 0.5
+
+		local ax = 0
+		local ay = self.center - half_height
+		local bx = 128
+		local by = self.center + half_height
+
+		rectfill(ax, ay, bx, by, 1)
+	end
+
+	return obj
+end
+
 -- global --
 local map_info = act.map_info.new()
 local player_list = sys.player_list.new()
+local end_message = act.end_message.new()
+
+local sequence = "battle"
+function update_sequence()
+	local out_player_idx = player_list:check_out_floor()
+	if out_player_idx == 0 then
+		return
+	end
+
+	if out_player_idx == 1 then
+		end_message.winner = 2
+	elseif out_player_idx == 2 then
+		end_message.winner = 1
+	end
+
+	sequence = "end"
+end
 
 -- system --
 function _init()
@@ -949,9 +1024,12 @@ function _init()
 end
 
 function _update()
-	hit_checker:check()
+	if sequence == "battle" then
+		hit_checker:check()
+		player_list:update()
+		update_sequence()
+	end
 
-	player_list:update()
 	dbg_print:update()
 end
 
@@ -961,6 +1039,9 @@ function _draw()
 	map_info:draw()
 	player_list:draw()
 
+	if sequence == "end" then
+		end_message:draw()
+	end
 	--draw_camera_effect()
 
 	-- dbg
